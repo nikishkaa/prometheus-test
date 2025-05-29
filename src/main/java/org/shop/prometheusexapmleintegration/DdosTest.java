@@ -13,11 +13,14 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class DdosTest {
-    private static final String TARGET_URL = "http://34.132.194.33:8080";
-    private static final int NUM_THREADS = 50;
+    private static final String TARGET_URL = "http://34.132.194.33:9400";
+    private static final int NUM_THREADS = 10;
     private static final int DURATION_SECONDS = 60;
     private static final int REQUESTS_PER_THREAD = 1000;
     private static final Random random = new Random();
+    private static final AtomicInteger totalErrors = new AtomicInteger(0);
+    private static final AtomicInteger timeoutErrors = new AtomicInteger(0);
+    private static final AtomicInteger connectionErrors = new AtomicInteger(0);
 
     public static void main(String[] args) {
         System.out.println("Начинаем тест нагрузки на " + TARGET_URL);
@@ -55,6 +58,10 @@ public class DdosTest {
         System.out.println("Запросов в секунду: " + (totalRequests / duration));
         System.out.println("Процент успешных запросов: " + 
             (totalRequests > 0 ? (successfulRequests * 100.0 / totalRequests) : 0) + "%");
+        System.out.println("\nСтатистика ошибок:");
+        System.out.println("Всего ошибок: " + totalErrors.get());
+        System.out.println("Ошибок таймаута: " + timeoutErrors.get());
+        System.out.println("Ошибок соединения: " + connectionErrors.get());
 
         executor.shutdown();
     }
@@ -66,7 +73,7 @@ public class DdosTest {
 
         public RequestWorker() {
             this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
+                .connectTimeout(Duration.ofSeconds(30))
                 .build();
         }
 
@@ -83,7 +90,7 @@ public class DdosTest {
                     
                     HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(url))
-                        .timeout(Duration.ofSeconds(5))
+                        .timeout(Duration.ofSeconds(30))
                         .GET()
                         .build();
 
@@ -95,10 +102,19 @@ public class DdosTest {
                         successfulRequests.incrementAndGet();
                     }
 
-                    // Небольшая задержка между запросами
-                    Thread.sleep(100);
-                } catch (IOException | InterruptedException e) {
-                    System.err.println("Ошибка запроса: " + e.getMessage());
+                    // Увеличиваем задержку между запросами
+                    Thread.sleep(500);
+                } catch (IOException e) {
+                    totalErrors.incrementAndGet();
+                    if (e.getMessage().contains("timed out")) {
+                        timeoutErrors.incrementAndGet();
+                        System.err.println("Таймаут запроса: " + e.getMessage());
+                    } else {
+                        connectionErrors.incrementAndGet();
+                        System.err.println("Ошибка соединения: " + e.getMessage());
+                    }
+                } catch (InterruptedException e) {
+                    System.err.println("Поток прерван: " + e.getMessage());
                 }
             }
 
