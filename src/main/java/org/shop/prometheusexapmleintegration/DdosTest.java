@@ -124,7 +124,10 @@ public class DdosTest {
                     HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(urlBuilder.toString()))
                         .timeout(Duration.ofSeconds(5))
-                        .header("Connection", "keep-alive") // Используем keep-alive
+                        .header("Accept", "*/*")
+                        .header("Accept-Language", "en-US,en;q=0.9")
+                        .header("Cache-Control", "no-cache")
+                        .header("Pragma", "no-cache")
                         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                         .GET()
                         .build();
