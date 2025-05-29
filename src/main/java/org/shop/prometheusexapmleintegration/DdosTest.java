@@ -14,13 +14,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DdosTest {
     private static final String TARGET_URL = "http://34.132.194.33:9400";
-    private static final int NUM_THREADS = 10;
-    private static final int DURATION_SECONDS = 60;
-    private static final int REQUESTS_PER_THREAD = 1000;
+    private static final int NUM_THREADS = 100;
+    private static final int DURATION_SECONDS = 300;
+    private static final int REQUESTS_PER_THREAD = 10000;
     private static final Random random = new Random();
     private static final AtomicInteger totalErrors = new AtomicInteger(0);
     private static final AtomicInteger timeoutErrors = new AtomicInteger(0);
     private static final AtomicInteger connectionErrors = new AtomicInteger(0);
+    private static final AtomicInteger requestsPerSecond = new AtomicInteger(0);
+    private static final AtomicInteger lastSecondRequests = new AtomicInteger(0);
+    private static long lastSecondTime = System.currentTimeMillis();
 
     public static void main(String[] args) {
         System.out.println("Начинаем тест нагрузки на " + TARGET_URL);
@@ -28,16 +31,16 @@ public class DdosTest {
         System.out.println("Длительность теста: " + DURATION_SECONDS + " секунд");
         System.out.println("Запросов на поток: " + REQUESTS_PER_THREAD);
 
+        startRpsMonitor();
+
         ExecutorService executor = Executors.newFixedThreadPool(NUM_THREADS);
         List<Future<RequestStats>> futures = new ArrayList<>();
         long startTime = System.currentTimeMillis();
 
-        // Запускаем потоки
         for (int i = 0; i < NUM_THREADS; i++) {
             futures.add(executor.submit(new RequestWorker()));
         }
 
-        // Собираем результаты
         int totalRequests = 0;
         int successfulRequests = 0;
         for (Future<RequestStats> future : futures) {
@@ -66,6 +69,29 @@ public class DdosTest {
         executor.shutdown();
     }
 
+    private static void startRpsMonitor() {
+        Thread monitorThread = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(1000);
+                    long currentTime = System.currentTimeMillis();
+                    long timeDiff = currentTime - lastSecondTime;
+                    if (timeDiff >= 1000) {
+                        int currentRps = lastSecondRequests.get();
+                        requestsPerSecond.set(currentRps);
+                        System.out.println("Текущий RPS: " + currentRps);
+                        lastSecondRequests.set(0);
+                        lastSecondTime = currentTime;
+                    }
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        });
+        monitorThread.setDaemon(true);
+        monitorThread.start();
+    }
+
     static class RequestWorker implements Callable<RequestStats> {
         private final HttpClient client;
         private final AtomicInteger totalRequests = new AtomicInteger(0);
@@ -73,7 +99,7 @@ public class DdosTest {
 
         public RequestWorker() {
             this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(30))
+                .connectTimeout(Duration.ofSeconds(10))
                 .build();
         }
 
@@ -84,13 +110,14 @@ public class DdosTest {
             while (System.currentTimeMillis() < endTime && 
                    totalRequests.get() < REQUESTS_PER_THREAD) {
                 try {
-                    // Добавляем случайные параметры для разнообразия запросов
                     String url = TARGET_URL + "?param1=" + random.nextInt(1000) + 
-                                "&param2=" + random.nextInt(1000);
+                                "&param2=" + random.nextInt(1000) +
+                                "&param3=" + random.nextInt(1000) +
+                                "&param4=" + random.nextInt(1000);
                     
                     HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(url))
-                        .timeout(Duration.ofSeconds(30))
+                        .timeout(Duration.ofSeconds(10))
                         .GET()
                         .build();
 
@@ -98,12 +125,12 @@ public class DdosTest {
                         HttpResponse.BodyHandlers.ofString());
 
                     totalRequests.incrementAndGet();
+                    lastSecondRequests.incrementAndGet();
                     if (response.statusCode() == 200) {
                         successfulRequests.incrementAndGet();
                     }
 
-                    // Увеличиваем задержку между запросами
-                    Thread.sleep(500);
+                    Thread.sleep(10);
                 } catch (IOException e) {
                     totalErrors.incrementAndGet();
                     if (e.getMessage().contains("timed out")) {
