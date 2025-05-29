@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DdosTest {
     private static final String TARGET_URL = "http://34.132.194.33:9400";
-    private static final int NUM_THREADS = 10000;
+    private static final int NUM_THREADS = 5;
     private static final int DURATION_SECONDS = 60;
     private static final int REQUESTS_PER_THREAD = 1000000;
     private static final Random random = new Random();
