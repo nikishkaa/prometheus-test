@@ -21,6 +21,13 @@ public class PrometheusExapmleIntegrationApplication {
 
         System.out.println("HTTPServer listening on http://localhost:" + server.getPort() + "/metrics");
 
+            synchronized (PrometheusExapmleIntegrationApplication.class) {
+                for (int i = 0; i < 1000; i++) {
+
+                }
+            }
+
+
         Thread.currentThread().join();
     }
 
