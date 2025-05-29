@@ -112,8 +112,12 @@ public class DdosTest {
                 try {
                     // Генерируем большой URL с множеством параметров
                     StringBuilder urlBuilder = new StringBuilder(TARGET_URL);
+                    urlBuilder.append("?"); // Добавляем знак вопроса перед первым параметром
                     for (int i = 0; i < 20; i++) { // Добавляем 20 параметров
-                        urlBuilder.append("&param").append(i).append("=")
+                        if (i > 0) {
+                            urlBuilder.append("&");
+                        }
+                        urlBuilder.append("param").append(i).append("=")
                                 .append(random.nextInt(1000000));
                     }
                     
